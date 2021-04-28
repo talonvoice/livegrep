@@ -117,9 +117,19 @@ local_repository(
     path = "tools/org_dropbox_rules_node",
 )
 
-load("@org_dropbox_rules_node//node:defs.bzl", "node_repositories")
+load("@org_dropbox_rules_node//node:defs.bzl", "node_repositories", "NODEJS_BUILD_FILE_CONTENT")
 
-node_repositories()
+node_repositories(omit_nodejs=True)
+
+load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+
+http_archive(
+    name = "nodejs",
+    url = "https://nodejs.org/dist/v6.11.1/node-v6.11.1-darwin-x64.tar.gz",
+    strip_prefix = "node-v6.11.1-darwin-x64",
+    sha256 = "a2b839259089ef26f20c17864ff5ce9cd1a67e841be3d129b38d288b45fe375b",
+    build_file_content = NODEJS_BUILD_FILE_CONTENT,
+)
 
 git_repository(
     name = "com_grail_bazel_compdb",
