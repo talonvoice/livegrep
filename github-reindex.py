@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import List
 from urllib.parse import urlparse
+import argparse
 import itertools
 import json
 import os
@@ -103,19 +104,28 @@ def parse_url(url):
     user, repo, *extra = path.split("/")
     return user, repo
 
-def build_config(name, path, urls):
-    fpath = Path(path)
+def build_config(args):
+    os.makedirs(args.path, exist_ok=True)
+    auth = tuple(args.auth.split(':', 1)) if args.auth else ()
+
+    fpath = Path(args.path)
     forks = []
-    for url in urls:
+    for url in args.urls:
         user, repo = parse_url(url)
         if not repo:
             continue
-        for fork in get_forks_recursive(user, repo, auth=()):
+        if args.recursive:
+            fork_gen = get_forks_recursive(user, repo, auth=auth)
+        else:
+            fork_gen = get_forks(user, repo, auth=auth)
+        for fork in fork_gen:
             forks.append(fork)
+            if args.verbose:
+                print(fork)
     forks.sort(key=lambda x: x.stars, reverse=True)
 
     config = {
-        "name": name,
+        "name": args.name,
         "repos": [],
     }
     repos = config["repos"]
@@ -133,12 +143,12 @@ def build_config(name, path, urls):
         json.dump(config, f, indent=4)
 
 if __name__ == "__main__":
-    if len(sys.argv) < 4:
-        print("Usage: livegrep-index <path> <name> <github url> ...", file=sys.stderr)
-        sys.exit(1)
-
-    name = sys.argv[1]
-    path = sys.argv[2]
-    urls = sys.argv[3:]
-    os.makedirs(path, exist_ok=True)
-    build_config(name, path, urls)
+    parser = argparse.ArgumentParser()
+    parser.add_argument('path', help='output directory')
+    parser.add_argument('name', help='livegrep name')
+    parser.add_argument('urls', help='github urls', nargs='+')
+    parser.add_argument('--auth', help='http basic auth, "user:pass"')
+    parser.add_argument('-r', '--recursive', help='follow forks recursively', action='store_true')
+    parser.add_argument('-v', '--verbose',   help='more verbose output', action='store_true')
+    args = parser.parse_args()
+    build_config(args)
