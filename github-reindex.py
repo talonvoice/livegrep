@@ -7,6 +7,7 @@ import json
 import os
 import requests
 import sys
+import time
 
 @dataclass
 class Fork:
@@ -16,6 +17,7 @@ class Fork:
     http_url: str
     git_url:  str
     ssh_url:  str
+    forks:    int
     stars:    int
 
     @classmethod
@@ -28,14 +30,16 @@ class Fork:
             git_url=j["git_url"],
             ssh_url=j["ssh_url"],
             stars=j["stargazers_count"],
+            forks=j["forks_count"],
         )
 
-def await_rate_limit():
-    r = requests.get("https://api.github.com/rate_limit")
+def await_rate_limit(auth=()):
+    r = requests.get("https://api.github.com/rate_limit", auth=auth)
     r.raise_for_status()
     j = r.json()
     core = j["resources"]["core"]
     if core["remaining"] == 0:
+        reset = min(3600, core["reset"] - time.time() + 5)
         time.sleep(min(3600, core["reset"] - time.time() + 5))
 
 def is_rate_limited(r):
@@ -47,7 +51,7 @@ def fetch(url, auth=()):
         if r.status_code == 200:
             break
         if r.status_code == 403 and is_rate_limited(r):
-            await_rate_limit()
+            await_rate_limit(auth=auth)
         else:
             r.raise_for_status()
     else:
@@ -55,7 +59,7 @@ def fetch(url, auth=()):
     return r
 
 def get_forks(user, repo, auth=()):
-    await_rate_limit()
+    await_rate_limit(auth=auth)
     r = fetch(f"https://api.github.com/repos/{user}/{repo}", auth=auth)
     j = r.json()
     yield Fork.parse(j)
@@ -71,7 +75,22 @@ def get_forks(user, repo, auth=()):
         for item in j:
             yield Fork.parse(item)
         if is_rate_limited(r):
-            await_rate_limit()
+            await_rate_limit(auth=auth)
+
+def get_forks_recursive(user, repo, auth=()):
+    fetched = set()
+    yielded = set()
+    queue = [(user, repo)]
+    while queue:
+        user, repo = queue.pop()
+        fetched.add((user, repo))
+        for fork in get_forks(user, repo, auth=auth):
+            fork_key = (fork.user, fork.repo)
+            if fork.forks and fork_key not in fetched:
+                queue.append(fork_key)
+            if fork_key not in yielded:
+                yield fork
+                yielded.add(fork_key)
 
 def parse_url(url):
     if not "://" in url:
@@ -91,7 +110,7 @@ def build_config(name, path, urls):
         user, repo = parse_url(url)
         if not repo:
             continue
-        for fork in get_forks(user, repo):
+        for fork in get_forks_recursive(user, repo, auth=()):
             forks.append(fork)
     forks.sort(key=lambda x: x.stars, reverse=True)
 
