@@ -61,7 +61,12 @@ def fetch(url, auth=()):
 
 def get_forks(user, repo, auth=()):
     await_rate_limit(auth=auth)
-    r = fetch(f"https://api.github.com/repos/{user}/{repo}", auth=auth)
+    try:
+        r = fetch(f"https://api.github.com/repos/{user}/{repo}", auth=auth)
+    except requests.exceptions.HTTPError as e:
+        if e.response.status_code == 404:
+            return
+        raise
     j = r.json()
     yield Fork.parse(j)
 
