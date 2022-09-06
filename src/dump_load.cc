@@ -25,6 +25,10 @@
 
 #include "google/protobuf/util/json_util.h"
 
+#include "gflags/gflags.h"
+
+DEFINE_bool(eager_memory_load, false, "Eagerly load memory-mapped index file pages into virtual memory (Linux only)");
+
 class codesearch_index {
 public:
     codesearch_index(code_searcher *cs, string path) :
@@ -110,7 +114,9 @@ private:
         }
         buf = mmap(NULL, len, PROT_READ|PROT_WRITE, MAP_SHARED,
                    index_->fd_, off);
-        assert(buf != MAP_FAILED);
+        if (buf == MAP_FAILED) {
+            die("mmap %s: %s", path_.c_str(), strerror((errno)));
+        }
         index_->stream_.seekp(len, ios::cur);
         return make_pair(off, static_cast<uint8_t*>(buf));
     }
@@ -299,6 +305,7 @@ void codesearch_index::dump_metadata() {
     hdr_.nfiles   = cs_->files_.size();
     hdr_.nchunks  = cs_->alloc_->size();
     hdr_.ncontent = content_.size();
+    hdr_.timestamp = cs_->index_timestamp();
 
     hdr_.name_off = stream_.tellp();
     dump_string(cs_->name());
@@ -412,14 +419,26 @@ load_allocator::load_allocator(code_searcher *cs, const string& path) {
         die("Cannot stat: '%s': %s\n", path.c_str(), strerror(errno));
     }
     map_size_ = st.st_size;
-    map_ = mmap(NULL, map_size_, PROT_READ, MAP_SHARED,
+    int flags = MAP_PRIVATE;
+    if (FLAGS_eager_memory_load) {
+#if defined(MAP_POPULATE)
+        flags |= MAP_POPULATE;
+#else
+        fprintf(stderr, "Error: eager memory load is not supported on this platform\n");
+        exit(1);
+#endif
+    }
+    map_ = mmap(NULL, map_size_, PROT_READ, flags,
                 fd_, 0);
-    assert(map_ != MAP_FAILED);
+    if (map_ == MAP_FAILED) {
+        die("mmap %s: %s", path.c_str(), strerror((errno)));
+    }
     p_ = static_cast<unsigned char*>(map_);
 
     hdr_ = consume<index_header>();
     set_chunk_size(hdr_->chunk_size);
     chunks_hdr_ = next_chunk_ = ptr<chunk_header>(hdr_->chunks_off);
+    cs->set_index_timestamp((int64_t) hdr_->timestamp);
 
     p_ = ptr<unsigned char>(hdr_->name_off);
     cs->set_name(load_string());
@@ -468,8 +487,14 @@ void load_allocator::load(code_searcher *cs) {
     assert(!cs->finalized_);
     assert(!cs->trees_.size());
 
-    assert(hdr_->magic == kIndexMagic);
-    assert(hdr_->version == kIndexVersion);
+    if (hdr_->magic != kIndexMagic) {
+        die("file has invalid magic: got %x != %x", hdr_->magic, kIndexMagic);
+    }
+    if (hdr_->version != kIndexVersion) {
+        die("file has unsupported version: got %d != %d. "
+            "Index may have been created by an incompatible livegrep version",
+            hdr_->version, kIndexVersion);
+    }
     assert(hdr_->chunks_off);
 
     set_chunk_size(hdr_->chunk_size);
@@ -537,10 +562,6 @@ void load_allocator::load(code_searcher *cs) {
         indexed_file *sf = it->get();
         cs->filename_positions_.push_back(make_pair(pos, sf));
     }
-
-    struct stat st;
-    assert(fstat(fd_, &st) == 0);
-    cs->index_timestamp_ = st.st_mtime;
 
     cs->finalized_ = true;
 }

@@ -37,7 +37,7 @@ genrule(
         "//web:webpack_build",
     ],
     outs = ["hashes.txt"],
-    cmd = "shasum -a 256 $(SRCS) | sed \"s_ $(BINDIR)/_ _\" | sed \"s_ web/htdocs/_ _\"> $@",
+    cmd = """shasum -a 256 $(SRCS) | sed "s# $(BINDIR)/# #" | sed "s# web/htdocs/# #"> $@""",
 )
 
 pkg_tar(
