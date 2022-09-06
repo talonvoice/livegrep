@@ -131,9 +131,9 @@ def build_config(args):
 
     config = {
         "name": args.name,
-        "repos": [],
+        "repositories": [],
     }
-    repos = config["repos"]
+    repos = config["repositories"]
     for fork in forks:
         repos.append({
             "path": str(fpath / fork.user / fork.repo),
