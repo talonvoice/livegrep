@@ -14,6 +14,7 @@ import time
 @dataclass
 class Fork:
     user:     str
+    user_url: str
     repo:     str
     url:      str
     http_url: str
@@ -26,6 +27,7 @@ class Fork:
     def parse(cls, j):
         return cls(
             user=j["owner"]["login"],
+            user_url=j["owner"]["url"],
             repo=j["name"],
             url=j["html_url"],
             http_url=j["clone_url"],
@@ -137,6 +139,13 @@ def build_config(args):
     repos = config["repositories"]
     all_paths = set()
     for fork in forks:
+        # if the user page returns 404, the fork reference is broken and we need to skip it
+        try:
+            fetch(fork.user_url, auth=auth)
+        except requests.exceptions.HTTPError as e:
+            if e.response.status_code == 404:
+                continue
+            raise
         repo_path = fpath / fork.user / fork.repo
         all_paths.add(repo_path)
         repos.append({
