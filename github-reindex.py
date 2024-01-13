@@ -7,6 +7,7 @@ import itertools
 import json
 import os
 import requests
+import shutil
 import sys
 import time
 
@@ -134,9 +135,12 @@ def build_config(args):
         "repositories": [],
     }
     repos = config["repositories"]
+    all_paths = set()
     for fork in forks:
+        repo_path = fpath / fork.user / fork.repo
+        all_paths.add(repo_path)
         repos.append({
-            "path": str(fpath / fork.user / fork.repo),
+            "path": str(repo_path),
             "name": f"{fork.user}/{fork.repo}",
             "revisions": ["HEAD"],
             "metadata": {
@@ -147,12 +151,23 @@ def build_config(args):
     with open(fpath / "livegrep.json", "w") as f:
         json.dump(config, f, indent=4)
 
+    if args.delete:
+        for org in fpath.iterdir():
+            if not org.is_dir():
+                continue
+            for repo in org.iterdir():
+                if repo not in all_paths:
+                    if args.verbose:
+                        print(f"[-] rm {repo}")
+                    shutil.rmtree(repo)
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('path', help='output directory')
     parser.add_argument('name', help='livegrep name')
     parser.add_argument('urls', help='github urls', nargs='+')
     parser.add_argument('--auth', help='http basic auth, "user:pass"')
+    parser.add_argument('--delete', help='delete old repos from disk after crawling', action='store_true')
     parser.add_argument('-r', '--recursive', help='follow forks recursively', action='store_true')
     parser.add_argument('-v', '--verbose',   help='more verbose output', action='store_true')
     args = parser.parse_args()
