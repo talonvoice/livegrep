@@ -27,9 +27,8 @@ git_repository(
 
 git_repository(
     name = "com_github_nelhage_rules_boost",
-    commit = "c1d618315fa152958baef8ea0d77043eebf7f573",
+    commit = "03a871125484f8bea934761d5e8673f5d4979b57",
     remote = "https://github.com/nelhage/rules_boost",
-    shallow_since = "1546641660 -0600",
 )
 # local_repository(
 #   name = "com_github_nelhage_boost",
@@ -45,10 +44,10 @@ boost_deps()
 
 http_archive(
     name = "io_bazel_rules_go",
-    sha256 = "d6b2513456fe2229811da7eb67a444be7785f5323c6708b38d851d2b51e54d83",
+    sha256 = "099a9fb96a376ccbbb7d291ed4ecbdfd42f6bc822ab77ae6f1b5cb9e914e94fa",
     urls = [
-        "https://mirror.bazel.build/github.com/bazelbuild/rules_go/releases/download/v0.30.0/rules_go-v0.30.0.zip",
-        "https://github.com/bazelbuild/rules_go/releases/download/v0.30.0/rules_go-v0.30.0.zip",
+        "https://mirror.bazel.build/github.com/bazelbuild/rules_go/releases/download/v0.35.0/rules_go-v0.35.0.zip",
+        "https://github.com/bazelbuild/rules_go/releases/download/v0.35.0/rules_go-v0.35.0.zip",
     ],
 )
 
@@ -63,7 +62,7 @@ load("@io_bazel_rules_go//go:deps.bzl", "go_register_toolchains", "go_rules_depe
 
 go_rules_dependencies()
 
-go_register_toolchains(version = "1.17.6")
+go_register_toolchains(version = "1.19.2")
 
 load("@bazel_gazelle//:deps.bzl", "gazelle_dependencies")
 
@@ -84,11 +83,18 @@ http_archive(
     url = "https://github.com/libgit2/libgit2/archive/v0.27.9.tar.gz",
 )
 
+http_archive(
+    name = "com_google_absl",
+    sha256 = "497ebdc3a4885d9209b9bd416e8c3f71e7a1fb8af249f6c2a80b7cbeefcd7e21",
+    strip_prefix = "abseil-cpp-20230802.1/",
+    url = "https://github.com/abseil/abseil-cpp/archive/refs/tags/20230802.1.zip",
+)
+
 git_repository(
     name = "com_github_grpc_grpc",
     commit = "591d56e1300b6d11948e1b821efac785a295989c",  # 1.44.0
     remote = "https://github.com/grpc/grpc.git",
-    shallow_since = "1644573434 +0100"
+    shallow_since = "1644573434 +0100",
 )
 
 load("@com_github_grpc_grpc//bazel:grpc_deps.bzl", "grpc_deps")
@@ -105,23 +111,51 @@ git_repository(
     remote = "https://github.com/bazelbuild/buildifier.git",
 )
 
-local_repository(
-    name = "org_dropbox_rules_node",
-    path = "tools/org_dropbox_rules_node",
+http_archive(
+    name = "hedron_compile_commands",
+
+    url = "https://github.com/hedronvision/bazel-compile-commands-extractor/archive/e16062717d9b098c3c2ac95717d2b3e661c50608.tar.gz",
+    sha256 = "ed5aea1dc87856aa2029cb6940a51511557c5cac3dbbcb05a4abd989862c36b4",
+    strip_prefix = "bazel-compile-commands-extractor-e16062717d9b098c3c2ac95717d2b3e661c50608",
 )
 
-load("@org_dropbox_rules_node//node:defs.bzl", "node_repositories")
+load("@hedron_compile_commands//:workspace_setup.bzl", "hedron_compile_commands_setup")
 
-node_repositories()
-
-git_repository(
-    name = "com_grail_bazel_compdb",
-    commit = "7658de071fcd072163c24cc96d78e9891d4d81f5",
-    remote = "https://github.com/grailbio/bazel-compilation-database.git",
-)
+hedron_compile_commands_setup()
 
 git_repository(
     name = "com_google_googletest",
     commit = "0ea2d8f8fa1601abb9ce713b7414e7b86f90bc61",
     remote = "https://github.com/google/googletest",
 )
+
+http_archive(
+    name = "aspect_rules_js",
+    sha256 = "66ecc9f56300dd63fb86f11cfa1e8affcaa42d5300e2746dba08541916e913fd",
+    strip_prefix = "rules_js-1.13.0",
+    url = "https://github.com/aspect-build/rules_js/archive/refs/tags/v1.13.0.tar.gz",
+)
+
+load("@aspect_rules_js//js:repositories.bzl", "rules_js_dependencies")
+
+rules_js_dependencies()
+
+load("@rules_nodejs//nodejs:repositories.bzl", "DEFAULT_NODE_VERSION", "nodejs_register_toolchains")
+
+nodejs_register_toolchains(
+    name = "nodejs",
+    node_version = DEFAULT_NODE_VERSION,
+)
+
+load("@aspect_rules_js//npm:npm_import.bzl", "npm_translate_lock")
+
+npm_translate_lock(
+    name = "npm",
+    npmrc = "//web:.npmrc",
+    pnpm_lock = "//web:pnpm-lock.yaml",
+    verify_node_modules_ignored = "//:.bazelignore",
+)
+
+load("@npm//:repositories.bzl", "npm_repositories")
+
+npm_repositories()

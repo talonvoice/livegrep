@@ -39,6 +39,7 @@
 
 #include <boost/bind.hpp>
 #include <boost/filesystem.hpp>
+#include <boost/filesystem/string_file.hpp>
 #include "re2/regexp.h"
 #include "re2/walker-inl.h"
 
@@ -95,7 +96,7 @@ void build_index(code_searcher *cs, const vector<std::string> &argv) {
     for (auto &path : spec.paths()) {
         fprintf(stderr, "Walking path_spec name=%s, path=%s\n",
                 path.name().c_str(), path.path().c_str());
-        fs_indexer indexer(cs, path.path(), path.name(), path.metadata());
+        fs_indexer indexer(cs, path.path(), path.name(), path.metadata(), path.ignore_symlinks());
         if (path.ordered_contents().empty()) {
             fprintf(stderr, "  walking full tree\n");
             indexer.walk(path.path());

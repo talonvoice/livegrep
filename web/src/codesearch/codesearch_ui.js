@@ -120,17 +120,21 @@ function renderLinkConfigs(linkConfigs, tree, version, path, lno) {
 
   var links = linkConfigs.map(
     function(linkConfig) {
+      var attrs = {
+        cls: "file-action-link",
+        href: externalUrl(
+          linkConfig.url_template,
+          tree,
+          version,
+          path,
+          lno
+        ),
+      };
+      if (linkConfig.target) {
+        attrs.target = linkConfig.target;
+      }
       return h.a(
-        {
-          cls: "file-action-link",
-          href: externalUrl(
-            linkConfig.url_template,
-            tree,
-            version,
-            path,
-            lno
-          ),
-        },
+        attrs,
         [linkConfig.label]
       );
     }
@@ -817,6 +821,18 @@ var CodesearchUI = function() {
       CodesearchUI.toggle_context();
 
       Codesearch.connect(CodesearchUI);
+      $('.query-hint code').click(function(e) {
+        var ext = e.target.textContent;
+        var q = CodesearchUI.input.val();
+        if( !q.includes(ext)
+            && ((ext.indexOf('-') == 0 && !q.includes(ext.substring(1)))
+            || (ext.indexOf('-') != 0 && !q.includes('-' + ext.substring)))
+        ) {
+          q = q + ' ' + ext;
+        }
+        CodesearchUI.input.val(q);
+        CodesearchUI.input.focus();
+       })
 
       // Update the search when the user hits Forward or Back.
       window.onpopstate = function(event) {

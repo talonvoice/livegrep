@@ -17,8 +17,9 @@ namespace fs = boost::filesystem;
 fs_indexer::fs_indexer(code_searcher *cs,
                        const string& repopath,
                        const string& name,
-                       const Metadata &metadata)
-    : cs_(cs), repopath_(repopath), name_(name) {
+                       const Metadata &metadata,
+                       const bool& ignore_symlinks)
+    : cs_(cs), repopath_(repopath), name_(name), ignore_symlinks_(ignore_symlinks) {
     tree_ = cs->open_tree(name, metadata, "");
 }
 
@@ -52,13 +53,20 @@ void fs_indexer::walk(const fs::path& path) {
     if (!fs::exists(path)) return;
     fs::directory_iterator end_itr;
     if (fs::is_directory(path)) {
-        for (fs::directory_iterator itr(path);
+        for (fs::directory_iterator itr(path, fs::directory_options::skip_permission_denied);
                 itr != end_itr;
                 ++itr) {
-            if (fs::is_directory(itr->status()) ) {
+            boost::system::error_code ec;
+            if (ignore_symlinks_ && fs::is_symlink(itr->path())) {
+                continue;
+            }
+            if (fs::is_directory(itr->status(ec)) ) {
                 fs_indexer::walk(itr->path());
-            } else if (fs::is_regular_file(itr->status()) ) {
+            } else if (fs::is_regular_file(itr->status(ec)) ) {
                 fs_indexer::read_file(itr->path());
+            }
+            if (ec != boost::system::errc::success) {
+                fprintf(stderr, "WARN: %s is inaccessible.\n", itr->path().c_str());
             }
         }
     } else if (fs::is_regular_file(path)) {
